@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>F1 Pro Studio v5.0 – Ultimate Suite</title>
+<style>
+  :root {
+    --bg-dark: #0b0e14;
+    --bg-panel: #161b22;
+    --accent: #e10600;
+    --text: #f0f6fc;
+    --border: #30363d;
+    --font-ui: 'Segoe UI', system-ui, sans-serif;
+  }
+  
+  * { box-sizing: border-box; }
+  
+  body {
+    margin: 0; background: var(--bg-dark); color: var(--text);
+    font-family: var(--font-ui); height: 100vh; overflow: hidden;
+    display: flex;
+  }
+
+  /* SIDEBAR GRID */
+  .sidebar {
+    width: 440px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .tab-header { display: flex; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-panel); z-index: 10; }
+  .tab-btn {
+    flex: 1; padding: 15px; background: transparent; border: none;
+    color: #8b949e; cursor: pointer; font-weight: 600;
+    transition: 0.2s; border-bottom: 2px solid transparent;
+  }
+  .tab-btn.active { color: white; border-bottom-color: var(--accent); background: rgba(255,255,255,0.03); }
+
+  .tab-content { padding: 20px; display: none; }
+  .tab-content.active { display: block; }
+
+  /* CONTROLS */
+  .control-group { margin-bottom: 20px; border-bottom: 1px solid #21262d; padding-bottom: 15px; }
+  .control-group:last-child { border-bottom: none; }
+  
+  label { display: block; font-size: 11px; font-weight: 700; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; }
+  
+  input[type="text"], input[type="number"], select {
+    width: 100%; background: #0d1117; border: 1px solid var(--border);
+    color: white; padding: 8px 10px; border-radius: 6px; font-size: 13px;
+    margin-bottom: 5px;
+  }
+  input:focus { border-color: var(--accent); outline: none; }
+  
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+
+  /* GRID EDITOR STYLE */
+  .grid-row { display: grid; grid-template-columns: 30px 1fr 80px; gap: 5px; margin-bottom: 5px; align-items: center; }
+  .grid-pos { font-size: 12px; color: #8b949e; text-align: center; }
+
+  /* DRIVER ASSETS */
+  .asset-uploader {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.03); padding: 8px; border-radius: 6px; margin-bottom: 8px;
+  }
+  .asset-preview {
+    width: 40px; height: 40px; background: #000; border-radius: 4px; object-fit: cover;
+  }
+
+  /* PREVIEW AREA */
+  .main-stage {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #0d1117; padding: 40px;
+    position: relative;
+    background-image: radial-gradient(#1f242e 1px, transparent 1px);
+    background-size: 20px 20px;
+    overflow: hidden;
+  }
+
+  canvas {
+    max-height: 90vh; max-width: 100%;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    border: 1px solid #30363d;
+  }
+
+  .btn-primary {
+    background: var(--accent); color: white; font-weight: bold;
+    padding: 12px; border: none; border-radius: 6px; cursor: pointer; width: 100%;
+    margin-top: 10px;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+
+  /* Checkbox & Slider */
+  input[type=range] { -webkit-appearance: none; background: transparent; width: 100%; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; margin-top: -5px;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    width: 100%; height: 4px; cursor: pointer; background: #30363d; border-radius: 2px;
+  }
+  
+  .checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; cursor: pointer; }
+  .checkbox-row input { width: auto; margin: 0; }
+  .checkbox-row span { font-size: 13px; }
+
+</style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="tab-header">
+      <button class="tab-btn active" onclick="switchTab('data')">1. Data</button>
+      <button class="tab-btn" onclick="switchTab('assets')">2. Assets</button>
+      <button class="tab-btn" onclick="switchTab('design')">3. Design</button>
+    </div>
+
+    <div id="tab-data" class="tab-content active">
+      <div class="control-group">
+        <label>Graphic Mode</label>
+        <select id="layoutMode" onchange="updateState('layout', this.value)">
+          <option value="list">Top 10 Results (List)</option>
+          <option value="podium">Podium Celebration</option>
+          <option value="hero">Hero / Pole Position</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <label>Headlines</label>
+        <input type="text" id="titleInput" value="MONACO GP" placeholder="Main Title" oninput="updateState('title', this.value)">
+        <input type="text" id="subInput" value="QUALIFYING RESULTS" placeholder="Subtitle" oninput="updateState('subtitle', this.value)">
+      </div>
+
+      <div class="control-group" id="heroDataControls" style="display:none; padding:10px; background:#1c2128; border-radius:6px; border-left:3px solid var(--accent);">
+        <label>Hero Driver Details</label>
+        <select id="heroDriverSelect" onchange="updateHeroDriver(this.value)" style="margin-bottom:5px;"></select>
+        <input type="text" id="heroText" value="POLE POSITION" placeholder="Big Text (e.g. POLE)" oninput="updateState('heroText', this.value)">
+      </div>
+
+      <div class="control-group">
+        <label>Grid & Gaps (Pos | Driver | Time)</label>
+        <div id="grid-inputs"></div>
+      </div>
+    </div>
+
+    <div id="tab-assets" class="tab-content">
+      <div class="control-group">
+        <label>Global Background</label>
+        <input type="file" onchange="handleImageUpload('bg', this)">
+      </div>
+
+      <div class="control-group">
+        <label>Driver Images (Transparent PNGs)</label>
+        
+        <div class="asset-uploader">
+          <img id="prev-p1" class="asset-preview" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <div style="flex:1">
+            <label>P1 / Hero Driver</label>
+            <input type="file" onchange="handleImageUpload('p1', this)">
+          </div>
+        </div>
+
+        <div class="asset-uploader">
+          <img id="prev-p2" class="asset-preview" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <div style="flex:1">
+            <label>P2 Driver</label>
+            <input type="file" onchange="handleImageUpload('p2', this)">
+          </div>
+        </div>
+
+        <div class="asset-uploader">
+          <img id="prev-p3" class="asset-preview" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+          <div style="flex:1">
+            <label>P3 Driver</label>
+            <input type="file" onchange="handleImageUpload('p3', this)">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-design" class="tab-content">
+      
+      <div class="control-group">
+        <label>Theme Colors</label>
+        <div class="row">
+          <input type="color" value="#e10600" oninput="updateState('accentColor', this.value)">
+          <input type="color" value="#0b0e14" oninput="updateState('bgColor', this.value)">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Advanced Style</label>
+        <label class="checkbox-row">
+            <input type="checkbox" onchange="updateState('useTexture', this.checked)">
+            <span>Add Broadcast Grain/Texture</span>
+        </label>
+        <label class="checkbox-row">
+            <input type="checkbox" onchange="updateState('glassMode', this.checked)">
+            <span>Glassmorphism (Blurry Rows)</span>
+        </label>
+         <label class="checkbox-row">
+            <input type="checkbox" onchange="updateState('italicFont', this.checked)">
+            <span>Italicized Fonts</span>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label>Podium Fitting Controls</label>
+        <p style="font-size:11px; color:#8b949e; margin-bottom:5px;">Only affects "Podium" Mode images</p>
+        
+        <div class="row" style="align-items:center; margin-bottom:5px;">
+            <span style="font-size:10px; width:50px;">Zoom</span>
+            <input type="range" min="50" max="200" value="100" oninput="updateState('podiumScale', parseInt(this.value))">
+        </div>
+        <div class="row" style="align-items:center; margin-bottom:5px;">
+            <span style="font-size:10px; width:50px;">Y-Offset</span>
+            <input type="range" min="-200" max="200" value="0" oninput="updateState('podiumOffsetY', parseInt(this.value))">
+        </div>
+         <label class="checkbox-row" style="margin-top:5px;">
+            <input type="checkbox" checked onchange="updateState('podiumClip', this.checked)">
+            <span>Clip Image to Box (Behind Text)</span>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label>Global Positioning</label>
+        <div class="row" style="align-items:center;">
+          <span style="font-size:10px; width:40px;">Title Y</span>
+          <input type="range" min="-100" max="100" value="0" oninput="updateState('offsetTitle', parseInt(this.value))">
+        </div>
+        <div class="row" style="align-items:center; margin-top:5px;">
+          <span style="font-size:10px; width:40px;">List Y</span>
+          <input type="range" min="-200" max="200" value="0" oninput="updateState('offsetContent', parseInt(this.value))">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Canvas Size</label>
+        <select onchange="updateState('aspect', this.value)">
+          <option value="portrait">Portrait (4:5) - IG Post</option>
+          <option value="story">Story (9:16) - IG Story</option>
+          <option value="square">Square (1:1)</option>
+          <option value="landscape">Landscape (16:9) - YouTube</option>
+        </select>
+      </div>
+
+      <button class="btn-primary" onclick="downloadImage()">⬇ Download High Res</button>
+    </div>
+  </div>
+
+  <div class="main-stage">
+    <canvas id="canvas"></canvas>
+  </div>
+
+<script>
+/* -------------------------------------------------------------------------- */
+/* DATABASE                                   */
+/* -------------------------------------------------------------------------- */
+const DRIVERS = [
+  { id: 1, name: "Max Verstappen", team: "Red Bull", color: "#1E41FF" },
+  { id: 4, name: "Lando Norris", team: "McLaren", color: "#FF8000" },
+  { id: 16, name: "Charles Leclerc", team: "Ferrari", color: "#E80020" },
+  { id: 44, name: "Lewis Hamilton", team: "Ferrari", color: "#E80020" },
+  { id: 63, name: "George Russell", team: "Mercedes", color: "#00D2BE" },
+  { id: 81, name: "Oscar Piastri", team: "McLaren", color: "#FF8000" },
+  { id: 55, name: "Carlos Sainz", team: "Williams", color: "#005AFF" },
+  { id: 14, name: "Fernando Alonso", team: "Aston Martin", color: "#006F62" },
+  { id: 10, name: "Pierre Gasly", team: "Alpine", color: "#FD4BC7" },
+  { id: 23, name: "Alex Albon", team: "Williams", color: "#005AFF" },
+  { id: 22, name: "Yuki Tsunoda", team: "RB", color: "#6692FF" },
+  { id: 27, name: "Nico Hulkenberg", team: "Sauber", color: "#52E252" },
+  { id: 67, name: " ", team: "", color: "#555" }
+];
+
+/* -------------------------------------------------------------------------- */
+/* STATE ENGINE                                */
+/* -------------------------------------------------------------------------- */
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const state = {
+  layout: 'list', 
+  title: 'MONACO GP',
+  subtitle: 'QUALIFYING RESULTS',
+  heroText: 'POLE POSITION',
+  aspect: 'portrait',
+  
+  // Design
+  bgColor: '#0b0e14',
+  accentColor: '#e10600',
+  offsetTitle: 0,
+  offsetContent: 0,
+  
+  // New Styles
+  useTexture: false,
+  glassMode: false,
+  italicFont: false,
+  
+  // Podium Fitting
+  podiumScale: 100,
+  podiumOffsetY: 0,
+  podiumClip: true,
+
+  // Data
+  grid: [],
+  heroDriver: DRIVERS[0],
+  
+  assets: { bg: null, p1: null, p2: null, p3: null }
+};
+
+// Initialize Grid Data
+state.grid = Array(10).fill(null).map((_, i) => ({
+  pos: i + 1,
+  ...DRIVERS[i % DRIVERS.length],
+  gap: i === 0 ? "POLE" : `+${(Math.random() * i).toFixed(3)}s`
+}));
+
+/* -------------------------------------------------------------------------- */
+/* CORE LOGIC                                  */
+/* -------------------------------------------------------------------------- */
+
+function init() {
+  buildInputs();
+  render();
+}
+
+function updateState(key, value) {
+  state[key] = value;
+  
+  // Toggle UI visibility
+  if(key === 'layout') {
+    document.getElementById('heroDataControls').style.display = value === 'hero' ? 'block' : 'none';
+    document.getElementById('grid-inputs').style.display = value === 'hero' ? 'none' : 'block';
+  }
+  
+  requestAnimationFrame(render);
+}
+
+function updateGridData(index, key, value) {
+    if(key === 'id') {
+        const drv = DRIVERS.find(x => x.id == value);
+        state.grid[index] = { ...state.grid[index], ...drv };
+    } else {
+        state.grid[index][key] = value;
+    }
+    render();
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function handleImageUpload(key, input) {
+  const file = input.files[0];
+  if(!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      state.assets[key] = img;
+      render();
+    };
+    img.src = e.target.result;
+    if(document.getElementById(`prev-${key}`)) {
+      document.getElementById(`prev-${key}`).src = e.target.result;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function buildInputs() {
+  const container = document.getElementById('grid-inputs');
+  container.innerHTML = '';
+  
+  state.grid.forEach((d, i) => {
+    const div = document.createElement('div');
+    div.className = 'grid-row';
+    
+    // Position
+    const pos = document.createElement('span');
+    pos.className = 'grid-pos';
+    pos.innerText = d.pos;
+    
+    // Driver Select
+    const sel = document.createElement('select');
+    DRIVERS.forEach(drv => {
+      const opt = document.createElement('option');
+      opt.value = drv.id;
+      opt.text = drv.name;
+      if(drv.id === d.id) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = (e) => updateGridData(i, 'id', e.target.value);
+    
+    // Gap Input
+    const gapInput = document.createElement('input');
+    gapInput.type = 'text';
+    gapInput.value = d.gap;
+    gapInput.oninput = (e) => updateGridData(i, 'gap', e.target.value);
+    
+    div.append(pos, sel, gapInput);
+    container.appendChild(div);
+  });
+
+  const heroSel = document.getElementById('heroDriverSelect');
+  heroSel.innerHTML = ''; // clear
+  DRIVERS.forEach(drv => {
+    const opt = document.createElement('option');
+    opt.value = drv.id;
+    opt.text = drv.name;
+    heroSel.appendChild(opt);
+  });
+}
+
+function updateHeroDriver(id) {
+  state.heroDriver = DRIVERS.find(d => d.id == id);
+  render();
+}
+
+/* -------------------------------------------------------------------------- */
+/* RENDERING ENGINE                               */
+/* -------------------------------------------------------------------------- */
+
+function getDimensions() {
+  const baseW = 1080;
+  let baseH = 1350; // portrait
+  if(state.aspect === 'square') baseH = 1080;
+  if(state.aspect === 'story') baseH = 1920;
+  if(state.aspect === 'landscape') baseH = 608;
+  return { w: baseW, h: baseH };
+}
+
+function getFont(weight, size) {
+    const style = state.italicFont ? 'italic' : 'normal';
+    return `${style} ${weight} ${size}px "Segoe UI", sans-serif`;
+}
+
+function render() {
+  const dim = getDimensions();
+  canvas.width = dim.w;
+  canvas.height = dim.h;
+  const w = dim.w;
+  const h = dim.h;
+  
+  // 1. Background
+  if(state.assets.bg) {
+    // Fill cover
+    const img = state.assets.bg;
+    const r = Math.min(w / img.width, h / img.height);
+    const nw = img.width * r;
+    const nh = img.height * r;
+    ctx.drawImage(img, (w-nw)/2, (h-nh)/2, nw, nh);
+    
+    ctx.fillStyle = `rgba(0,0,0,0.75)`;
+    ctx.fillRect(0,0,w,h);
+  } else {
+    const g = ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0, state.bgColor);
+    g.addColorStop(1, '#000000');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+  }
+
+  // Texture Overlay
+  if(state.useTexture) {
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      // Simple scanline effect
+      for(let i=0; i<h; i+=4) {
+          ctx.fillRect(0, i, w, 1);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // 2. Header
+  const headY = 100 + state.offsetTitle;
+  
+  ctx.fillStyle = state.accentColor;
+  ctx.fillRect(50, headY, 10, 110);
+  
+  ctx.fillStyle = 'white';
+  ctx.font = getFont(900, 80);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText(state.title.toUpperCase(), 80, headY);
+  
+  ctx.fillStyle = '#cccccc';
+  ctx.font = getFont(600, 35);
+  ctx.fillText(state.subtitle.toUpperCase(), 80, headY + 85);
+
+  // 3. Content Routing
+  const contentY = headY + 180 + state.offsetContent;
+  
+  if(state.layout === 'list') drawList(w, h, contentY);
+  else if(state.layout === 'podium') drawPodium(w, h, contentY);
+  else if(state.layout === 'hero') drawHero(w, h, contentY);
+}
+
+/* --- LIST VIEW --- */
+function drawList(w, h, startY) {
+  const rowH = (h - startY - 40) / 10;
+  
+  state.grid.forEach((d, i) => {
+    const y = startY + (i * rowH);
+    const cy = y + rowH/2;
+    
+    // Background Stripe
+    if(state.glassMode) {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(20, y+2, w-40, rowH-4);
+        ctx.shadowBlur = 0;
+    } else if(i % 2 === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fillRect(20, y, w-40, rowH);
+    }
+    
+    // Team Color
+    ctx.fillStyle = d.color;
+    ctx.fillRect(20, y+5, 8, rowH-10);
+    
+    ctx.textBaseline = 'middle';
+    
+    // POS
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center';
+    ctx.font = getFont('bold', 40);
+    ctx.fillText(d.pos, 80, cy);
+    
+    // NAME
+    ctx.textAlign = 'left';
+    ctx.font = getFont('bold', 32);
+    ctx.fillText(d.name.toUpperCase(), 140, cy);
+    
+    const nameW = ctx.measureText(d.name.toUpperCase()).width;
+    ctx.fillStyle = state.accentColor;
+    ctx.font = getFont('bold', 24);
+    ctx.fillText(`#${d.id}`, 140 + nameW + 15, cy);
+    
+    // GAP (User Edited)
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#aaa';
+    ctx.font = getFont(400, 24);
+    ctx.fillText(d.gap, w - 50, cy);
+  });
+}
+
+/* --- PODIUM VIEW (Enhanced Fitting) --- */
+function drawPodium(w, h, startY) {
+  const centerX = w / 2;
+  
+  // Helper to draw single podium
+  const drawSlot = (driver, rank, x, imgAsset) => {
+    const yBase = startY + 400;
+    const height = rank === 1 ? 280 : rank === 2 ? 200 : 160;
+    const yTop = yBase - height;
+    const boxW = 240;
+    
+    // 1. Draw Image (Behind or clipped inside?)
+    if(imgAsset) {
+      const zoom = state.podiumScale / 100;
+      const aspect = imgAsset.width / imgAsset.height;
+      
+      const drawH = 400 * zoom;
+      const drawW = drawH * aspect;
+      
+      // Calculate position
+      const imgX = x - drawW/2;
+      const imgY = yTop - drawH + 50 + state.podiumOffsetY;
+
+      ctx.save();
+      
+      if(state.podiumClip) {
+          // Create clip region (The box area + some space above)
+          // Actually, standard F1 graphics usually have the driver BEHIND the number box
+          // Or standing ON it. Let's clip to bottom of screen so they don't bleed down.
+          ctx.beginPath();
+          ctx.rect(x - boxW/2, 0, boxW, yTop + 10); 
+          ctx.clip();
+      }
+      
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 20;
+      ctx.drawImage(imgAsset, imgX, imgY, drawW, drawH);
+      ctx.restore();
+    }
+
+    // 2. The Box
+    ctx.fillStyle = state.glassMode ? 'rgba(30,35,45,0.8)' : 'rgba(255,255,255,0.05)';
+    ctx.strokeStyle = driver.color;
+    ctx.lineWidth = 4;
+    
+    // Draw Box
+    ctx.fillRect(x - boxW/2, yTop, boxW, height);
+    ctx.strokeRect(x - boxW/2, yTop, boxW, height);
+    
+    // Rank Number
+    ctx.fillStyle = driver.color;
+    ctx.textAlign = 'center';
+    ctx.font = getFont(900, 100);
+    ctx.fillText(rank, x, yTop + height/2 + 10);
+    
+    // Driver Name Tag
+    ctx.fillStyle = 'white';
+    ctx.font = getFont('bold', 20);
+    ctx.fillText(driver.name.split(" ")[1].toUpperCase(), x, yTop - 20);
+  };
+
+  // Draw Order: 2, 3, 1 (1 last to be on top)
+  if(state.grid[1]) drawSlot(state.grid[1], 2, centerX - 280, state.assets.p2);
+  if(state.grid[2]) drawSlot(state.grid[2], 3, centerX + 280, state.assets.p3);
+  if(state.grid[0]) drawSlot(state.grid[0], 1, centerX, state.assets.p1);
+  
+  // Remaining List (4-10)
+  const listStart = startY + 450;
+  const remH = (h - listStart) / 7;
+  for(let i=3; i<10; i++) {
+     const d = state.grid[i];
+     const y = listStart + ((i-3) * remH);
+     
+     ctx.fillStyle = state.glassMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.3)';
+     ctx.fillRect(40, y+2, w-80, remH-4);
+     ctx.fillStyle = d.color;
+     ctx.fillRect(40, y+2, 5, remH-4);
+     
+     ctx.fillStyle = 'white';
+     ctx.textAlign = 'left';
+     ctx.font = getFont('bold', 24);
+     ctx.fillText(`P${d.pos} ${d.name.toUpperCase()}`, 60, y + remH/2);
+     
+     // Gap
+     ctx.textAlign = 'right';
+     ctx.fillStyle = '#ccc';
+     ctx.font = getFont('normal', 20);
+     ctx.fillText(d.gap, w-60, y + remH/2);
+  }
+}
+
+/* --- HERO VIEW --- */
+function drawHero(w, h, startY) {
+  const d = state.heroDriver;
+  
+  // Big Background Text
+  ctx.save();
+  ctx.translate(w/2, h/2);
+  ctx.rotate(-Math.PI / 8);
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.font = getFont(900, 250);
+  ctx.textAlign = 'center';
+  ctx.fillText(d.id, 0, 0);
+  ctx.restore();
+  
+  // Hero Image
+  if(state.assets.p1) {
+      const img = state.assets.p1;
+      const aspect = img.width / img.height;
+      const tH = h * 0.7; // Fixed height logic for hero
+      const tW = tH * aspect;
+      
+      ctx.shadowColor = d.color;
+      ctx.shadowBlur = 50;
+      ctx.drawImage(img, (w-tW)/2, h - tH, tW, tH);
+      ctx.shadowBlur = 0;
+  }
+  
+  // Overlay Text
+  ctx.textAlign = 'center';
+  ctx.fillStyle = state.accentColor;
+  ctx.font = getFont(900, 120);
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 4;
+  ctx.strokeText(state.heroText.toUpperCase(), w/2, h/2 + 100);
+  ctx.fillText(state.heroText.toUpperCase(), w/2, h/2 + 100);
+  
+  ctx.fillStyle = 'white';
+  ctx.font = getFont('bold', 50);
+  ctx.fillText(d.name.toUpperCase(), w/2, h/2 + 160);
+  
+  // Team Strip
+  ctx.fillStyle = d.color;
+  ctx.fillRect(0, h-20, w, 20);
+}
+
+function downloadImage() {
+  const link = document.createElement('a');
+  link.download = `f1_graphic_${Date.now()}.png`;
+  link.href = canvas.toDataURL();
+  link.click();
+}
+
+init();
+
+</script>
+</body>
+</html>
